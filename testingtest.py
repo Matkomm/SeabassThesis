@@ -1,18 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.integrate import solve_ivp
 
 class Fish:
-    def __init__(self, position, velocity):
+    def __init__(self, position, velocity, size):
         self.position = position
         self.velocity = velocity
+        self.size = size
 
     def update_position(self, cage):
-        new_position = self.position + self.velocity
+        # Hypothetically adjust velocity based on a reference velocity concept
+        ref_velocity_direction = np.random.rand(3) - 0.5  # This would be based on actual dynamics in the full model
+        ref_velocity_magnitude = 0.05  # Also a placeholder value
+        self.velocity = ref_velocity_direction / np.linalg.norm(ref_velocity_direction) * ref_velocity_magnitude
+
+        new_position = self.position + self.velocity * self.size
         if not cage.is_inside(new_position):
             self.velocity *= -1
-            new_position = self.position + self.velocity
+            new_position = self.position + self.velocity * self.size
         self.position = new_position
 
 class SeaCage:
@@ -25,16 +30,16 @@ class SeaCage:
         return radial_distance <= self.radius and 0 <= position[2] <= self.depth
 
 class Simulation:
-    def __init__(self, num_fish, cage_radius, cage_depth):
+    def __init__(self, num_fish, cage_radius, cage_depth, fish_size_mean, fish_size_var):
         self.fish = []
         for _ in range(num_fish):
-            # Randomly generate position in cylindrical coordinates and convert to Cartesian
             radius = np.random.uniform(0, cage_radius)
             angle = np.random.uniform(0, 2 * np.pi)
             depth = np.random.uniform(0, cage_depth)
             position = np.array([radius * np.cos(angle), radius * np.sin(angle), depth])
             velocity = (np.random.rand(3) - 0.5) / 10
-            self.fish.append(Fish(position, velocity))
+            size = np.random.normal(fish_size_mean, fish_size_var)
+            self.fish.append(Fish(position, velocity, size))
         self.cage = SeaCage(cage_radius, cage_depth)
 
     def run(self, num_steps, visualize=False):
@@ -44,6 +49,8 @@ class Simulation:
             ax.set_xlim3d([-self.cage.radius, self.cage.radius])
             ax.set_ylim3d([-self.cage.radius, self.cage.radius])
             ax.set_zlim3d([0, self.cage.depth])
+
+            # For visualizing the cage boundary
             x = np.linspace(-self.cage.radius, self.cage.radius, 100)
             z = np.linspace(0, self.cage.depth, 100)
             Xc, Zc = np.meshgrid(x, z)
@@ -60,7 +67,9 @@ class Simulation:
             for fish in self.fish:
                 fish.update_position(self.cage)
                 if visualize:
-                    ax.scatter(fish.position[0], fish.position[1], fish.position[2], color='red')
+                    ax.quiver(fish.position[0], fish.position[1], fish.position[2], 
+                              fish.velocity[0] * fish.size, fish.velocity[1] * fish.size, 
+                              fish.velocity[2] * fish.size, length=fish.size, color='red')
             
             if visualize:
                 plt.pause(0.05)
@@ -68,13 +77,14 @@ class Simulation:
         if visualize:
             plt.show()
 
-# Parameters for the simulation
+# Simulation parameters
 num_fish = 50
 cage_radius = 10  # Example radius
-cage_depth = 5  # Example depth
-num_steps = 100  # Example number of steps
+cage_depth = 5    # Example depth
+num_steps = 100   # Example number of steps
+fish_size_mean = 5  # Mean fish size in meters
+fish_size_var = 0.05  # Fish size variation in meters
 
 # Run the simulation with visualization
-simulation = Simulation(num_fish, cage_radius, cage_depth)
+simulation = Simulation(num_fish, cage_radius, cage_depth, fish_size_mean, fish_size_var)
 simulation.run(num_steps, visualize=True)
-
