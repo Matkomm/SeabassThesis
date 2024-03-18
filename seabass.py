@@ -17,7 +17,7 @@ max_speed = 1.2  #m/s
 average_speed = 0.6  #m/s
 
 # Parameters for the simulation
-num_fish = 2
+num_fish = 50
 cage_radius = 10  # Example radius
 cage_depth = 5  # Example depth
 num_steps = 100  # Example number of steps
@@ -180,13 +180,7 @@ class Simulation:
             for fish in self.fish:
                 fish.update_position(dt)
                 if visualize:
-                    # Visualize fish as ellipsoid
-                    u = np.linspace(0, 2 * np.pi, 100)
-                    v = np.linspace(0, np.pi, 100)
-                    x = fish.size * np.outer(np.cos(u), np.sin(v)) + fish.position[0]
-                    y = fish.size * np.outer(np.sin(u), np.sin(v)) + fish.position[1]
-                    z = fish.size * np.outer(np.ones(np.size(u)), np.cos(v)) + fish.position[2]
-                    ax.plot_surface(x, y, z, color='red')
+                    ax.scatter(fish.position[0], fish.position[1], fish.position[2], color='red', marker='>')
 
             if visualize:
                 plt.pause(0.05)

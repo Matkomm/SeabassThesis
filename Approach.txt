@@ -1,0 +1,4 @@
+Prøve å få fisken til å "bounce" av veggene først. Sette constraints?
+Start farten er ikke i negativ retning nå, bare positiv. 
+Videreutvikle fartsformelen. 
+Fikse form og retning på visulasjonen 
