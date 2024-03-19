@@ -88,3 +88,45 @@ fish_size_var = 0.05  # Fish size variation in meters
 # Run the simulation with visualization
 simulation = Simulation(num_fish, cage_radius, cage_depth, fish_size_mean, fish_size_var)
 simulation.run(num_steps, visualize=True)
+
+
+
+
+#Stochatic component
+    def get_rotation_matrix(self, velocity):
+        # Create a rotation matrix from the velocity vector
+        if norm(velocity) > 0:
+            # Normalize the velocity vector to use as a basis for rotation
+            direction = velocity / norm(velocity)
+            # We need two perpendicular vectors to the direction for a full basis
+            # For simplicity, we can use a simple trick if the direction is not vertical
+            if abs(direction[2]) != 1:
+                # Create a vector that is not collinear
+                non_collinear = np.array([0, 0, 1])
+                # Use cross product to find a vector perpendicular to the direction
+                v1 = np.cross(direction, non_collinear)
+                # Normalize v1
+                v1 /= norm(v1)
+                # The second perpendicular vector is perpendicular to both v1 and direction
+                v2 = np.cross(direction, v1)
+                # Now we have an orthonormal basis
+                rotation_matrix = np.array([v1, v2, direction])
+            else:
+                # For the vertical direction, choose a different approach
+                rotation_matrix = np.eye(3)  # This should be replaced with an appropriate rotation matrix
+            return rotation_matrix
+        else:
+            # If the velocity is zero, we return an identity matrix
+            return np.eye(3)
+
+    def stochastic_component(self, sigma=0.25):
+        # Generate a stochastic component vector with the given sigma
+        random_vector = np.random.normal(0, sigma, 2)
+        # We need to expand this to a 3D vector, the third component is 0
+        stochastic_vector = np.array([random_vector[0], random_vector[1], 0])
+        # Get the rotation matrix based on the current orientation
+        rotation_matrix = self.get_rotation_matrix(self.velocity)
+        # Apply the rotation matrix to the stochastic vector
+        V_ST = rotation_matrix.dot(stochastic_vector)
+        print('stochastic',V_ST)
+        return V_ST

@@ -1,4 +1,35 @@
+1. Define the Classes:
+Fish: Represents an individual fish, including its position, velocity, stomach content, feeding state, and responses to different environmental stimuli.
+# Spatial movement, 
+SeaCage: Represents the sea cage environment, including dimensions, temperature profile, light intensity profile, and the location of food.
+Environment: Encapsulates environmental factors such as temperature and light intensity, potentially varying with depth and time.
+Simulation: Manages the progression of time and the interactions between the fish and their environment.
+
+
+
+2.Implement the Fish Class:
+Store the position, orientation, and velocity of the fish.
+Implement methods to update the fish's behavior based on the environment and interactions with other fish (avoiding the cage walls, responding to temperature, light, and food).
+
+3.Implement the SeaCage Class:
+Define the spatial boundaries and environmental conditions of the sea cage.
+Hold a collection of Fish objects and manage their interactions.
+
+4. Implement the Environment Class:
+Define how environmental factors such as temperature and light intensity vary with depth and time.
+Provide methods to retrieve the environmental conditions at a specific location and time.
+
+5.Implement the Simulation Class:
+Progress the simulation time, updating the positions and states of all fish within the sea cage based on their behavioral responses to the environment and each other.
+Handle the initialization and termination of the simulation, and provide methods to observe the system state at any point in time.
+
+6.Define the Main Simulation Loop:
+Initialize the simulation, creating a SeaCage with a set of Fish objects and an Environment.
+For each time step, update the environmental conditions, then update each fish's state and position within the sea cage.
+Record or visualize the simulation state as needed.
+
 Prøve å få fisken til å "bounce" av veggene først. Sette constraints?
 Start farten er ikke i negativ retning nå, bare positiv. 
 Videreutvikle fartsformelen. 
+Fikse response toward other individuals
 Fikse form og retning på visulasjonen 
