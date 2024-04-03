@@ -130,3 +130,126 @@ simulation.run(num_steps, visualize=True)
         V_ST = rotation_matrix.dot(stochastic_vector)
         print('stochastic',V_ST)
         return V_ST
+
+class Simulation:
+    def __init__(self, num_fish, cage_radius, cage_depth):
+        self.fish = []
+        for fish_id in range(num_fish):
+            size = np.random.uniform(0.3, 0.4)  # meters
+            radius = np.random.uniform(0, cage_radius)
+            angle = np.random.uniform(0, 2 * np.pi)
+            depth = np.random.uniform(0, cage_depth)
+            position = np.array([radius * np.cos(angle), radius * np.sin(angle), depth])  # Start position
+            signs = np.random.choice([-1, 1], size=3)  # Choose random direction
+            velocity = np.random.normal(0.5 * size, 0.2 * size, 3) * signs  # Start velocity (BL/S), normal distribution
+            self.fish.append(Fish(position, velocity, tau=0.6, size=size, fish_id=fish_id))
+        self.cage = SeaCage(cage_radius, cage_depth)
+
+    def run(self, num_steps, visualize=False):
+        frames = []
+        dt = 1.0 / 10  # Time step
+
+        # Initialize fish positions for frame 0
+        fish_positions = {f.id: [f.position] for f in self.fish}
+
+        for step in range(num_steps):
+            for fish in self.fish:
+                fish.update_neighbors(self.fish, react_dist)
+                fish.update_position(dt)
+                fish_positions[fish.id].append(fish.position)
+
+            if step % 10 == 0:  # Adjust granularity for smoother animation
+                frame_data = [py.Scatter3d(x=[pos[0] for pos in fish_positions[fid]],
+                                           y=[pos[1] for pos in fish_positions[fid]],
+                                           z=[pos[2] for pos in fish_positions[fid]],
+                                           mode='markers',
+                                           marker=dict(size=6, opacity=0.8))  # Adjust size based on fish size
+                            for fid in fish_positions]
+                frames.append(py.Frame(data=frame_data, name=str(step)))
+
+        if visualize:
+            fig = py.Figure(
+                data=frames[0].data,
+                frames=frames,
+                layout=py.Layout(
+                    scene=dict(
+                        xaxis=dict(range=[-self.cage.radius, self.cage.radius]),
+                        yaxis=dict(range=[-self.cage.radius, self.cage.radius]),
+                        zaxis=dict(range=[0, self.cage.depth]),
+                        aspectratio=dict(x=1, y=1, z=0.5)),
+                    updatemenus=[dict(
+                        type="buttons",
+                        buttons=[dict(label="Play",
+                                      method="animate",
+                                      args=[None, {"frame": {"duration": 500, "redraw": True},
+                                                   "fromcurrent": True}]),
+                                 dict(label="Pause",
+                                      method="animate",
+                                      args=[[None], {"frame": {"duration": 0, "redraw": False},
+                                                     "mode": "immediate"}])])]))
+            fig.show()
+
+# Example usage:
+simulation = Simulation(num_fish=10, cage_radius=10, cage_depth=5)
+simulation.run(100, visualize=True)
+
+class Simulation:
+    def __init__(self, num_fish, cage_radius, cage_depth):
+        self.fish = []
+        for fish_id in range(num_fish):
+            size = np.random.uniform(0.3, 0.4) #meters
+            radius = np.random.uniform(0, cage_radius)
+            angle = np.random.uniform(0, 2 * np.pi)
+            depth = np.random.uniform(0, cage_depth)
+            position = np.array([radius * np.cos(angle), radius * np.sin(angle), depth]) #Start position
+            signs = np.random.choice([-1, 1], size=3) #Chose random direction
+            velocity = np.random.normal(0.5 * size, 0.2 * size, 3)*signs #Start velocity (BL/S), normal distribution
+            self.fish.append(Fish(position, velocity, tau=0.6, size=size, fish_id=fish_id))
+        self.cage = SeaCage(cage_radius, cage_depth)
+
+    def run(self, num_steps, visualize=False):
+        if visualize:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.set_xlim3d([-self.cage.radius, self.cage.radius])
+            ax.set_ylim3d([-self.cage.radius, self.cage.radius])
+            ax.set_zlim3d([0, self.cage.depth])
+            x = np.linspace(-self.cage.radius, self.cage.radius, 1000)
+            z = np.linspace(0, self.cage.depth, 1000)
+            Xc, Zc = np.meshgrid(x, z)
+            Yc = np.sqrt(self.cage.radius**2 - Xc**2)
+            #ax.plot_surface(Xc, Yc, Zc, alpha=0.3, color='blue')
+            #ax.plot_surface(Xc, -Yc, Zc, alpha=0.3, color='blue')
+
+        dt = 1.0/10  #Time step
+        for _ in range(num_steps):
+            for fish in self.fish:
+                fish.update_neighbors(self.fish, react_dist)
+                #print('neighbors',fish.neighbors)
+            if visualize:
+                ax.clear()
+                ax.plot_surface(Xc, Yc, Zc, alpha=0.3, color='blue')
+                ax.plot_surface(Xc, -Yc, Zc, alpha=0.3, color='blue')
+                ax.set_xlim3d([-self.cage.radius, self.cage.radius])
+                ax.set_ylim3d([-self.cage.radius, self.cage.radius])
+                ax.set_zlim3d([0, self.cage.depth])
+                ax.set_xlabel('X-direction')
+                ax.set_ylabel('Y-direction')
+                ax.set_zlabel('Z-direction')
+
+            for fish in self.fish:
+                fish.update_position(dt)
+                if visualize:
+                    ax.scatter(fish.position[0], fish.position[1], fish.position[2], color='red', marker='>', s=fish.size*100)
+
+            if visualize:
+                plt.pause(0.05)
+
+        if visualize:
+            plt.show()
+
+
+
+# Run the simulation with visualization
+simulation = Simulation(num_fish, cage_radius, cage_depth)
+simulation.run(num_steps, visualize=True)

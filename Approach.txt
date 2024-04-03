@@ -28,8 +28,9 @@ Initialize the simulation, creating a SeaCage with a set of Fish objects and an 
 For each time step, update the environmental conditions, then update each fish's state and position within the sea cage.
 Record or visualize the simulation state as needed.
 
-Prøve å få fisken til å "bounce" av veggene først. Sette constraints?
-Start farten er ikke i negativ retning nå, bare positiv. 
-Videreutvikle fartsformelen. 
-Fikse response toward other individuals
-Fikse form og retning på visulasjonen 
+Temperatur, lys og food
+Simuleringslenge
+
+#TODO
+Check start postion, fibonacci golden circle, modes if they are ok
+food

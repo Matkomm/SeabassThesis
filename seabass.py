@@ -1,37 +1,58 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.integrate import solve_ivp
 from scipy.spatial.transform import Rotation
 from numpy.linalg import norm
+import plotly.graph_objs as go
+import matplotlib
+matplotlib.use('Qt5Agg') 
 
-
-# Constants/parameters and coefficients
-k_values = {"k_C": 6/6, "k_F": 4/6, "k_T": 2/6, "k_L": 3/6, "k_SO": 5/6, "k_ST": 1/12}  #Hierarchical coefficients
+# Constants/parameters and coefficients for fish simulation
+k_values = {"k_C": 2/6, "k_F": 4/6, "k_T": 2/6, "k_L": 3/6, "k_SO": 5/6, "k_ST": 1/25}  #Velocity coefficients
 dpref_bottom = 0.5  #meters
 dpref_surface = 0.5  #meters
 dpref_wall = 0.5  #meters
-dpref_fish = 0.2 #meters, trying to change this to body length of each induvidual fish
-react_dist = 0.6  #meters
-max_speed = 1.2  #m/s
-average_speed = 0.6  #m/s
+dpref_fish = 0.3 #meters, trying to change this to body length of each induvidual fish
+react_dist = 0.5  #meters
+#max_speed = 1.2  #BL/s
+fish_size_upper = 0.26  #meters
+fish_size_lower = 0.24  #meters
+ave_velocity_xy = 0.5  #BL/s
+ave_velocity_z = 0.1  #BL/s
+
+
 # Parameters for the simulation
-num_fish = 50 
-cage_radius = 10  # Example radius
-cage_depth = 5  # Example depth
-num_steps = 100  # Example number of steps
+num_fish = 50
+cage_radius = 6.37  
+cage_depth = 8 
+num_steps = 100 #Number of steps
+dt = 1.0/2 #Time step
+elev = 0  #Elevation angle for the 3D plot
+time_of_day = 'morning'  # 'morning', 'noon', 'afternoon', 'night'
+#(morning : 6-10h, noon : 10-14h, afternoon : 14-18h and night : 20-6h)
+
+# Speed factors for different times of the day
+Speed_factor = {
+    'morning': 1.2, 
+    'noon': 1,      
+    'afternoon': 0.8, 
+    'night': 1      
+}
 
 class Fish:
-    def __init__(self, position, velocity, tau, size):
+    def __init__(self, position, velocity, tau, size, fish_id):
+        self.id = fish_id
         self.position = position
         self.velocity = velocity
         self.tau = tau
         self.size = size
         self.r_dot_prev = np.zeros(3)
-        self.delta_l = 0.66 * self.size  # Based on 0.66 Body Lengths as the minimum preferred distance
-        self.delta_h = 3 * self.size  # Based on 3 Body Lengths as the maximum reaction distance
-        
-        #Behaviour: response to cage and water surface
+        self.delta_l = 0.66 * self.size  #Based on 0.66 Body Lengths as the minimum preferred distance
+        self.delta_h = 3 * self.size  #Based on 3 Body Lengths as the maximum reaction distance
+
+    #Behaviour: response to cage and water surface
     def v_cs(self, position):
         d_surf = cage_depth-position[2]
         if d_surf <= dpref_surface : #Dobbelcheck this
@@ -71,71 +92,57 @@ class Fish:
                 v1 = np.cross(direction, non_collinear)
                 v1 /= norm(v1)
                 v2 = np.cross(direction, v1)
-                rotation_matrix = np.array([direction, v1, v2]).T  # Transposed for correct alignment
+                rotation_matrix = np.array([direction, v1, v2]).T  
             else:
                 v1 = np.array([1, 0, 0])
                 v2 = np.array([0, 1, 0])
                 if direction[2] < 0:  #Pointing down
-                    direction = -direction  #Make the 'forward' direction point upwards for consistency
+                    direction = -direction  
                 rotation_matrix = np.array([direction, v1, v2]).T
             return rotation_matrix
         return np.eye(3)
 
     def stochastic_component(self, sigma=0.25):
-        # This now assumes the fish always moves forward ('1') and experiences lateral and vertical stochastic perturbations
-        random_vector = np.array([1, np.random.normal(0, sigma), np.random.normal(0, sigma)])
+        random_vector = np.array([np.random.normal(0, sigma), np.random.normal(0, sigma), np.random.normal(0, sigma)]) #Changed x from 1 to normal distribution
         rotation_matrix = self.get_rotation_matrix(self.velocity)
         V_ST = rotation_matrix.dot(random_vector)
         return V_ST
 
     def update_neighbors(self, all_fish, threshold_distance):
         self.neighbors = [f for f in all_fish if 0 < np.linalg.norm(f.position - self.position) <= threshold_distance]
+        #print('neighbors', self.id, self.neighbors)
 
 
     def social_response(self, neighbors):
-        """
-        Calculate the social response of a fish towards its neighbors.
-        This method implements the behavior described in Equation 7 of the provided material.
-
-        :param neighbors: A list of all other fish objects.
-        :param delta_l: The preferred minimum distance to neighbors.
-        :param delta_h: The maximum reaction distance to neighbors.
-        :return: The social velocity vector as a numpy array.
-        """
         self.neighbors = []  # This should be replaced with actual neighbor fish
-        v_so = np.zeros(3)  # Initialize social velocity vector
-
+        v_so = np.zeros(3)  
         for neighbor in neighbors:
-            dij = neighbor.position - self.position  # Distance vector between fish i and j
-            rij_dot = neighbor.velocity  # Velocity vector of fish j
-            
-            if np.linalg.norm(dij) < self.delta_l:
-                # If too close, swim away from the neighbor
-                v_so_j = dij * (self.delta_l - np.linalg.norm(dij))
+            dij = neighbor.position - self.position  #Distance vector between fish i and j
+            rij_dot = neighbor.velocity  
+            #print('dij',dij)
+            if np.linalg.norm(dij) <= self.delta_l:
+                v_so_j = dij * (self.delta_l - np.linalg.norm(dij)) #If too close, swim away from the neighbor
             elif self.delta_l <= np.linalg.norm(dij) <= self.delta_h:
-                # If within preferred distance, try aligning with the neighbor
-                v_so_j = 0.5 * rij_dot * (np.linalg.norm(dij) - self.delta_h) / (self.delta_h - self.delta_l)
+                v_so_j = 0.5 * rij_dot * (np.linalg.norm(dij) - self.delta_h) / (self.delta_h - self.delta_l)#If within preferred distance, try aligning with the neighbor
             else:
-                # Otherwise, no response
+                #Otherwise, no response
                 v_so_j = np.zeros(3)
             
-            v_so += v_so_j  # Sum up the individual responses
+            v_so += v_so_j  
         
-        return v_so / len(neighbors) if neighbors else v_so  # Return the average if there are neighbors
-
+        return v_so / len(neighbors) if neighbors else v_so  
     
-
     def velocity_ode(self, t, y):
-        # Unpack the current position and velocity from y
+        #Unpack the current position and velocity from y
         position, velocity = y[:3], y[3:]
         V_c = (self.v_cs(position) + self.v_cb(position) + self.v_cw(position))
-        V_f = 0  # Replace with actual calculation
-        V_T = 0  # Replace with actual calculation
-        V_L = 0  # Replace with actual calculation
+        V_f = 0  #Food
+        V_T = 0  #Temperature
+        V_L = 0  #Light response, replaced by time of day?
         V_SO = self.social_response(self.neighbors)
         V_ST = self.stochastic_component()
-
-        # Compute new velocity using the reference velocity equation
+        #print('V_SO', self.id, V_SO)
+        #Compute new velocity using the reference velocity equation
         r_dot_ref = self.tau * self.r_dot_prev + (1 - self.tau) * (k_values["k_C"] * V_c + k_values["k_F"] * V_f +
                                                             k_values["k_T"] * V_T + k_values["k_L"] * V_L +
                                                             k_values["k_SO"] * V_SO + k_values["k_ST"] * V_ST)
@@ -146,40 +153,60 @@ class Fish:
 
 
     def update_position(self, dt):
-        # Initial conditions for solve_ivp [position, velocity]
+        #Initial conditions y0 = [position, velocity]
         y0 = np.concatenate((self.position, self.velocity))
-        # Time span for the ODE solver for one step of the simulation
-        t_span = (0, float(dt))  # Ensure dt is cast to float
-
-        # Solve the ODE
+        t_span = (0, float(dt)) #One time step for the ODE
         sol = solve_ivp(self.velocity_ode, t_span, y0, method='RK45')
-
-        # Update fish position and velocity with the last solution step
+        #Update fish position and velocity with the last solution step
         self.position, self.velocity = sol.y[:3, -1], sol.y[3:, -1]
+        #print('velocity', self.velocity)
 
 class SeaCage:
     def __init__(self, radius, depth):
         self.radius = radius
         self.depth = depth
 
-"""    def is_inside(self, position):
-        radial_distance = np.sqrt(position[0]**2 + position[1]**2)
-        return radial_distance <= self.radius and 0 <= position[2] <= self.depth"""
 
 class Simulation:
-    def __init__(self, num_fish, cage_radius, cage_depth):
+    def __init__(self, num_fish, cage_radius, cage_depth): #initialize
         self.fish = []
-        for _ in range(num_fish):
-            size = np.random.uniform(0.3, 0.4) #meters
-            radius = np.random.uniform(0, cage_radius)
-            angle = np.random.uniform(0, 2 * np.pi)
-            depth = np.random.uniform(0, cage_depth)
-            position = np.array([radius * np.cos(angle), radius * np.sin(angle), depth]) #Start position
-            signs = np.random.choice([-1, 1], size=3) #Chose random direction
-            velocity = np.random.normal(0.5 * size, 0.2 * size, 3)*signs #Start velocity (BL/S), normal distribution
-            self.fish.append(Fish(position, velocity, tau=0.6, size=size))
-        self.cage = SeaCage(cage_radius, cage_depth)
+        for fish_id in range(num_fish):
+            size = np.random.uniform(fish_size_lower, fish_size_upper) 
+            radius = np.random.uniform(0, cage_radius-dpref_wall) #Prevent fish from starting too close to the wall
+            angle = np.random.uniform(0,  2*np.pi) 
+            depth = np.random.uniform(dpref_bottom, cage_depth-dpref_surface)
+            signs = np.random.choice([-1, 1], 3)#Randomly choose direction of velocity
+            sign = np.random.choice([-1, 1]) 
 
+            if time_of_day == 'night' and num_fish != 1: 
+                z = dpref_bottom + (cage_depth - dpref_bottom - dpref_surface)*(fish_id/(num_fish - 1))
+                x = radius * np.cos(angle)
+                y = radius * np.sin(angle)
+                position = np.array([x, y, z])
+            else:
+                position = np.array([radius * np.cos(angle), radius * np.sin(angle), depth]) #Start position
+                
+
+            if time_of_day == 'morning' or time_of_day == 'noon':
+                velocity = np.random.normal(ave_velocity_xy * size, 0.1 * size, 3)*signs
+                velocity[2] = np.random.normal(ave_velocity_z * size, 0.05 * size)
+            else:
+                velocity = np.random.normal(ave_velocity_xy * size, 0.1 * size, 3)*signs  # Start velocity (BL/S), normal distribution
+                velocity[2] = np.random.normal(ave_velocity_z * size, 0.05 * size)*sign  #Start speed in z-direction
+            print('fish', fish_id, 'position', position, 'velocity', velocity, 'size', size )
+
+            if time_of_day == 'morning':
+                velocity *= Speed_factor['morning']
+            elif time_of_day == 'noon':
+                velocity *= Speed_factor['noon']
+            elif time_of_day == 'afternoon':
+                velocity *= Speed_factor['afternoon']
+            else:
+                velocity *= Speed_factor['night']
+            self.fish.append(Fish(position, velocity, tau=0.6, size=size, fish_id=fish_id))
+            #print('fish', fish_id, 'position', position, 'velocity', velocity, 'size', size )
+        self.cage = SeaCage(cage_radius, cage_depth)
+        
     def run(self, num_steps, visualize=False):
         if visualize:
             fig = plt.figure()
@@ -191,22 +218,35 @@ class Simulation:
             z = np.linspace(0, self.cage.depth, 100)
             Xc, Zc = np.meshgrid(x, z)
             Yc = np.sqrt(self.cage.radius**2 - Xc**2)
-            ax.plot_surface(Xc, Yc, Zc, alpha=0.3, color='blue')
-            ax.plot_surface(Xc, -Yc, Zc, alpha=0.3, color='blue')
 
-        dt = 1.0/10  #Time step
-        for _ in range(num_steps):
+        simulated_time = 0  #Initialize simulated time
+        for step in range(num_steps):
             for fish in self.fish:
-                fish.update_neighbors(self.fish, react_dist)
+                fish.update_neighbors(self.fish, react_dist) #react_dist could be updated to delta_h 
+
             if visualize:
                 ax.clear()
                 ax.plot_surface(Xc, Yc, Zc, alpha=0.3, color='blue')
                 ax.plot_surface(Xc, -Yc, Zc, alpha=0.3, color='blue')
+                ax.set_xlim3d([-self.cage.radius, self.cage.radius])
+                ax.set_ylim3d([-self.cage.radius, self.cage.radius])
+                ax.set_zlim3d([0, self.cage.depth])
+
+                angle = step % 360
+                ax.view_init(elev)# azim=angle)
+
+                ax.set_xlabel('X-direction')
+                ax.set_ylabel('Y-direction')
+                ax.set_zlabel('Z-direction')
+
+                simulated_time = step*dt
+                ax.set_title(f"Simulated Time: {simulated_time:.2f} seconds")
 
             for fish in self.fish:
                 fish.update_position(dt)
                 if visualize:
-                    ax.scatter(fish.position[0], fish.position[1], fish.position[2], color='red', marker='>')
+                    #ax.scatter(fish.position[0], fish.position[1], fish.position[2], color='red', marker='>', s=fish.size*100)
+                    ax.quiver(fish.position[0], fish.position[1], fish.position[2], fish.velocity[0], fish.velocity[1], fish.velocity[2], color='red', length=fish.size, normalize=True)
 
             if visualize:
                 plt.pause(0.05)
@@ -214,8 +254,6 @@ class Simulation:
         if visualize:
             plt.show()
 
-
-
-# Run the simulation with visualization
+#Run the simulation with visualization
 simulation = Simulation(num_fish, cage_radius, cage_depth)
 simulation.run(num_steps, visualize=True)
