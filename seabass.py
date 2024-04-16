@@ -5,12 +5,14 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.integrate import solve_ivp
 from scipy.spatial.transform import Rotation
 from numpy.linalg import norm
-import plotly.graph_objs as go
-import matplotlib
-matplotlib.use('Qt5Agg') 
+import os
+#matplotlib.use('Qt5Agg')
+
+directory = 'Simulation_data'
+file_path = os.path.join(directory, 'fish_data1.csv') #Change to file name here to store new simulation data
 
 # Constants/parameters and coefficients for fish simulation
-k_values = {"k_C": 2/6, "k_F": 4/6, "k_T": 2/6, "k_L": 3/6, "k_SO": 5/6, "k_ST": 1/25}  #Velocity coefficients
+k_values = {"k_C": 1/200, "k_F": 4/6, "k_T": 2/6, "k_L": 3/6, "k_SO": 5/600, "k_ST": 1/250}  #Velocity coefficients
 dpref_bottom = 0.5  #meters
 dpref_surface = 0.5  #meters
 dpref_wall = 0.5  #meters
@@ -19,18 +21,17 @@ react_dist = 0.5  #meters
 #max_speed = 1.2  #BL/s
 fish_size_upper = 0.26  #meters
 fish_size_lower = 0.24  #meters
-ave_velocity_xy = 0.5  #BL/s
-ave_velocity_z = 0.1  #BL/s
-
+ave_velocity_xy = 0.2  #BL/s
+ave_velocity_z = 0.08  #BL/s
 
 # Parameters for the simulation
-num_fish = 50
+num_fish = 100
 cage_radius = 6.37  
 cage_depth = 8 
-num_steps = 100 #Number of steps
-dt = 1.0/2 #Time step
+num_steps = 10000 #Number of steps
+dt = 1.0/1 #Time step
 elev = 0  #Elevation angle for the 3D plot
-time_of_day = 'morning'  # 'morning', 'noon', 'afternoon', 'night'
+time_of_day = 'noon'  # 'morning', 'noon', 'afternoon', 'night'
 #(morning : 6-10h, noon : 10-14h, afternoon : 14-18h and night : 20-6h)
 
 # Speed factors for different times of the day
@@ -140,8 +141,15 @@ class Fish:
         V_T = 0  #Temperature
         V_L = 0  #Light response, replaced by time of day?
         V_SO = self.social_response(self.neighbors)
-        V_ST = self.stochastic_component()
+        V_ST = self.stochastic_component() #Very computing heavy!!
         #print('V_SO', self.id, V_SO)
+        #print('V_ST', self.id, V_ST)
+        #print('V_c', self.id, V_c)
+
+        V_c = V_c / np.linalg.norm(V_c) if np.linalg.norm(V_c) > 1.0 else V_c
+        V_SO = V_SO / np.linalg.norm(V_SO) if np.linalg.norm(V_SO) > 1.0 else V_SO
+        V_ST = V_ST / np.linalg.norm(V_ST) if np.linalg.norm(V_ST) > 1.0 else V_ST
+        
         #Compute new velocity using the reference velocity equation
         r_dot_ref = self.tau * self.r_dot_prev + (1 - self.tau) * (k_values["k_C"] * V_c + k_values["k_F"] * V_f +
                                                             k_values["k_T"] * V_T + k_values["k_L"] * V_L +
@@ -188,11 +196,11 @@ class Simulation:
                 
 
             if time_of_day == 'morning' or time_of_day == 'noon':
-                velocity = np.random.normal(ave_velocity_xy * size, 0.1 * size, 3)*signs
-                velocity[2] = np.random.normal(ave_velocity_z * size, 0.05 * size)
+                velocity = np.random.normal(ave_velocity_xy * size, 0.03 * size, 3)*signs
+                velocity[2] = np.random.normal(ave_velocity_z * size, 0.01 * size)
             else:
-                velocity = np.random.normal(ave_velocity_xy * size, 0.1 * size, 3)*signs  # Start velocity (BL/S), normal distribution
-                velocity[2] = np.random.normal(ave_velocity_z * size, 0.05 * size)*sign  #Start speed in z-direction
+                velocity = np.random.normal(ave_velocity_xy * size, 0.03 * size, 3)*signs  # Start velocity (BL/S), normal distribution
+                velocity[2] = np.random.normal(ave_velocity_z * size, 0.01 * size)*sign  #Start speed in z-direction
             print('fish', fish_id, 'position', position, 'velocity', velocity, 'size', size )
 
             if time_of_day == 'morning':
@@ -207,7 +215,8 @@ class Simulation:
             #print('fish', fish_id, 'position', position, 'velocity', velocity, 'size', size )
         self.cage = SeaCage(cage_radius, cage_depth)
         
-    def run(self, num_steps, visualize=False):
+
+    def run(self, num_steps, visualize=False, log_data=False):
         if visualize:
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
@@ -219,10 +228,24 @@ class Simulation:
             Xc, Zc = np.meshgrid(x, z)
             Yc = np.sqrt(self.cage.radius**2 - Xc**2)
 
+        if log_data:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            data_file = open(file_path, 'w')
+            headers = ['time_step', 'fish_id'] + [f'pos_{dim}' for dim in ['x', 'y', 'z']] + [f'vel_{dim}' for dim in ['x', 'y', 'z']]
+            data_file.write(','.join(headers) + '\n')
+        else:
+            data_file = None
+
         simulated_time = 0  #Initialize simulated time
         for step in range(num_steps):
+            update_progress((step + 1) / num_steps) 
             for fish in self.fish:
                 fish.update_neighbors(self.fish, react_dist) #react_dist could be updated to delta_h 
+
+                if log_data:
+                        fish_data = [str(step), str(fish.id)] + list(map(str, fish.position)) + list(map(str, fish.velocity))
+                        data_file.write(','.join(fish_data) + '\n')
 
             if visualize:
                 ax.clear()
@@ -254,6 +277,18 @@ class Simulation:
         if visualize:
             plt.show()
 
+
+def update_progress(progress):
+    bar_length = 50
+    block = int(round(bar_length * progress))
+
+    bar = "█" * block + "-" * (bar_length - block)
+    print(f"\rProgress: [{bar}] {progress * 100:.2f}%", end='')
+
+    #New line on complete
+    if progress >= 1:
+        print()
+        
 #Run the simulation with visualization
 simulation = Simulation(num_fish, cage_radius, cage_depth)
-simulation.run(num_steps, visualize=True)
+simulation.run(num_steps, visualize=False, log_data=False)

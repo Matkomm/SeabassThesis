@@ -34,3 +34,17 @@ Simuleringslenge
 #TODO
 Check start postion, fibonacci golden circle, modes if they are ok
 food
+
+Check variabel coeffiecent. Read Martins paper, ask him questions.
+Sea cage walls is defintely a problem
+
+Problem: Decrease the k_c a lot and the fish does not increase in speed, but they escape the sea cage. 
+#Limit direction change to 60 degrees for each time step
+#Try to avoid that the speed gets clipped by charastic velocity, but maintain ok speed
+#Stocastic and cages still generates a lot of speed. Check java code.
+#Go through the code with java updates
+
+#initaliserte du farten med fiskene til 0, så ble farten oppdatert med r_dot? Dvs
+fisken har en veldig rask farts endring de første stegene før den stabliserer seg.
+R_dot er ny fart ikke fartendringen. 
+Endre på charascteric velocity, det som styrer marsj farten. Endre sånn den passer tiden på dagen. 
