@@ -8,7 +8,7 @@ import os
 
 
 directory = 'Simulation_data'
-file_path = os.path.join(directory, 'afternoon_test2.csv') #Change to file name here to store new simulation data
+file_path = os.path.join(directory, 'neighbors_test_prev.csv') #Change to file name here to store new simulation data
 
 dpref_bottom = 0.5  #meters
 dpref_surface = 0.5  #meters
@@ -22,10 +22,10 @@ ave_velocity_xy = 0  #BL/s
 ave_velocity_z = 0  #BL/s
 
 # Parameters for the simulation
-num_fish = 15
+num_fish =  500
 cage_radius = 6.37  
 cage_depth = 8 
-num_steps = 360 #Number of steps
+num_steps = 240 #Number of steps
 dt = 1.0/1 #Time step
 elev = 0  #Elevation angle for the 3D plot
 time_of_day = 'afternoon'  # 'morning', 'noon', 'afternoon', 'night'
@@ -55,9 +55,12 @@ class Fish:
         elif time_of_day == 'noon':
             self.characteristic_velocity = 0.48* self.size + 0.1 * self.size * np.random.normal()
         elif time_of_day == 'afternoon':
-            self.characteristic_velocity = 0.45*self.size + 0.05 * self.size * np.random.normal()
+            self.characteristic_velocity = 0.45*self.size + 0.1 * self.size * np.random.normal()
         else:
             self.characteristic_velocity = 0.48 * self.size + 0.1 * self.size * np.random.normal()
+
+     #The np.random.normal() function generates a random float drawn from a standard normal distribution 
+     #(mean of 0 and standard deviation of 1).
 
     #Behaviour: response to cage and water surface
     def v_cs(self, position):

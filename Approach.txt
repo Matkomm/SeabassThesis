@@ -48,3 +48,5 @@ Problem: Decrease the k_c a lot and the fish does not increase in speed, but the
 fisken har en veldig rask farts endring de første stegene før den stabliserer seg.
 R_dot er ny fart ikke fartendringen. 
 Endre på charascteric velocity, det som styrer marsj farten. Endre sånn den passer tiden på dagen. 
+
+5000 fisk, 720 steg. 1time ca 10%
