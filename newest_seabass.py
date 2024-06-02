@@ -1,14 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.integrate import solve_ivp
-from scipy.spatial.transform import Rotation
 from numpy.linalg import norm
 import os
 
 
 directory = 'Simulation_data'
-file_path = os.path.join(directory, 'density80_morning.csv') #Change to file name here to store new simulation data
+file_path = os.path.join(directory, 'evening_final1.csv') #Change to file name here to store new simulation data
 
 dpref_bottom = 0.5  #meters
 dpref_surface = 0.5  #meters
@@ -22,27 +20,34 @@ Divide_cell_size = 10  #Adjustable, smaller number, less cells
 
 
 # Parameters for the simulation
-num_fish =  3000
+num_fish =  1000
 cage_radius = 6.37  
 cage_depth = 8 
-num_steps = 500 #Number of steps
+num_steps = 3600 #Number of steps
 dt = 1.0/1 #Time step
 elev = 0  #Elevation angle for the 3D plot
-time_of_day = 'morning'  # 'morning', 'noon', 'afternoon', 'evening' 'night'
-#(morning : 6-10h, noon : 10-14h, afternoon : 14-18h, evening :18-22h and night : 22-6h)
+time_of_day = 'evening'  #  fish
+Temperature = 22.86  #Temperature 12-30°C
+#(morning : 6-10h, noon : 10-13h, afternoon : 13-17h, evening :17-20h and night : 20-6h)
 
 visualize=False #Visualize the simulation
 log_data=True #Log the data to a file
 
-free_will_percent = 0.8  #Percentage of fish that swim freely (0-1)
+free_will_percent = {'morning': 0.5, 'noon': 0.8, 'afternoon': 0.6, 'evening': 0.7, 'night': 0.9} #Percentage of fish that swim freely (0-1)
 #Depth preferences for different times of the day (preferred depth, standard deviation)
-depth_preferences = {
-    'morning': (1.5, 1),
-    'noon': (4.5, 3),
-    'afternoon': (4.5, 1),
-    'evening': (2, 2),
-    'night': (4, 2.5)
+depth_preferences = {'morning': (1.2, 1), 'noon': (4.7, 1.2), 'afternoon': (4.5, 1.5), 'evening': (1.5, 2), 'night': (4, 2)
 }
+
+#Temperature: response to temperature 
+def temperature_coefficient(T):
+    if T < 12 or T > 30:
+        raise ValueError("Temperature out of range. The simulation only runs for temperatures between 12°C and 30°C.")
+    a = 1.5437e-05
+    b = 5.2958e-05
+    c = -0.004567
+    d = -0.0003563
+    e = 1.0039
+    return a * (T - 22.86)**4 + b * (T - 22.86)**3 + c * (T - 22.86)**2 + d * (T - 22.86) + e
 
 class Fish:
     def __init__(self, position, velocity, tau, size, fish_id):
@@ -57,23 +62,24 @@ class Fish:
         self.dist_rect_fish = 3 * self.size  #Based on 3 Body Lengths as the maximum reaction distance
         self.max_speed = 1.5*self.size
         self.time_of_day = time_of_day
-
+        self.characteristic_velocity = 0
         # Initialize depth target and duration
         self.depth_preferences = self.set_depth_preferences(time_of_day)
         self.depth_target, self.target_duration = self.initialize_depth_target(self.depth_preferences)
+        
+        while self.characteristic_velocity < 0.2*self.size: #Remove "dead fish"
+            if time_of_day == 'morning':
+                self.characteristic_velocity = 0.75*self.size + 0.1 * self.size * np.random.normal()
+            elif time_of_day == 'noon':
+                self.characteristic_velocity = 0.49* self.size + 0.1 * self.size * np.random.normal()
+            elif time_of_day == 'afternoon':
+                self.characteristic_velocity = 0.46*self.size + 0.1 * self.size * np.random.normal()
+            elif time_of_day == 'evening':
+                self.characteristic_velocity = 0.47*self.size + 0.1 * self.size * np.random.normal()
+            else: #Night should not be used? 
+                self.characteristic_velocity = 0.51*self.size + 0.1 * self.size * np.random.normal()
 
-        if time_of_day == 'morning':
-            self.characteristic_velocity = 0.71*self.size + 0.1 * self.size * np.random.normal()
-        elif time_of_day == 'noon':
-            self.characteristic_velocity = 0.48* self.size + 0.1 * self.size * np.random.normal()
-        elif time_of_day == 'afternoon':
-            self.characteristic_velocity = 0.45*self.size + 0.1 * self.size * np.random.normal()
-        elif time_of_day == 'evening':
-            self.characteristic_velocity = 0.48 * self.size + 0.1 * self.size * np.random.normal()
-        else: #Night should not be used? 
-            self.characteristic_velocity = 0.48 * self.size + 0.1 * self.size * np.random.normal()
-
-
+        self.characteristic_velocity *= temperature_coefficient(Temperature)       
      #The np.random.normal() function generates a random float drawn from a standard normal distribution 
      #(mean of 0 and standard deviation of 1).
 
@@ -134,7 +140,7 @@ class Fish:
         else:
             self.target_duration -= 1
 
-    def v_d(self):
+    def v_dp(self):
         if self.depth_target is None:
             return np.array([0, 0, 0])
         else:
@@ -175,18 +181,17 @@ class Fish:
     def social_response(self, neighbors):
         v_so = np.zeros(3)  
         num_neighbors = 0  # Keep track of contributing neighbors
-
         for neighbor in neighbors:
             dij = neighbor.position[:3] - self.position[:3]  # Distance vector between fish i and j
             distance = np.linalg.norm(dij)
-            rij_dot = neighbor.velocity  
+            rj_dot = neighbor.velocity  
 
             if distance <= self.dist_pref_fish:
                 v_so_j = dij * (self.dist_pref_fish - distance) #Normalize?
                 v_so += v_so_j
                 num_neighbors += 1
             elif self.dist_pref_fish < distance <= self.dist_rect_fish:
-                v_so_j = 0.5 * rij_dot * (distance - self.dist_rect_fish) / (self.dist_rect_fish - self.dist_pref_fish)
+                v_so_j = 0.5 * rj_dot * (distance - self.dist_rect_fish) / (self.dist_rect_fish - self.dist_pref_fish)
                 v_so += v_so_j
                 num_neighbors += 1
 
@@ -239,9 +244,7 @@ class Fish:
         quotas = {'horizontal': 1, 'vertical': 0.5}
 
         V_c = (self.v_cs(position[:3]) + self.v_cb(position[:3]) + self.v_cw(position[:3]))
-        V_f = 0  #Food
-        V_T = 0  #Temperature
-        V_D = self.v_d()
+        V_DP = self.v_dp()
         V_SO = self.social_response(self.neighbors) 
         V_ST = self.stochastic_component() 
         #print('V_ST', V_ST, 'V_SO', V_SO, 'V_c', V_c)
@@ -257,14 +260,15 @@ class Fish:
         r_dot_change[:2] += self.apply_quota(V_ST[:2], quotas, 'horizontal')
         r_dot_change[2] += self.apply_quota(V_ST[2], quotas, 'vertical')
 
-        r_dot_change[:2] += self.apply_quota(V_D[:2], quotas, 'horizontal')
-        r_dot_change[2] += self.apply_quota(V_D[2], quotas, 'vertical')
+        r_dot_change[:2] += self.apply_quota(V_DP[:2], quotas, 'horizontal')
+        r_dot_change[2] += self.apply_quota(V_DP[2], quotas, 'vertical')
        
         #Normalize the change in velocity to prevent it from exceeding the characteristic velocity
         if np.linalg.norm(r_dot_change) > self.characteristic_velocity:
-            r_dot_change *= self.characteristic_velocity * np.random.uniform(0.8, 1.2)
+           r_dot_change *= self.characteristic_velocity * np.random.uniform(0.8, 1.2)
         #Reference velocity
         r_dot_ref = self.tau * self.r_dot_prev + (1 - self.tau) * r_dot_change
+
         self.r_dot_prev = r_dot_ref
 
         return r_dot_ref
@@ -290,7 +294,7 @@ class Fish:
             if speed > self.max_speed:
                 self.velocity = self.max_speed
            
-class SeaCage: #Remove this class?
+class SeaCage: 
     def __init__(self, radius, depth):
         self.radius = radius
         self.depth = depth
@@ -314,19 +318,11 @@ class Simulation:
             signs = np.random.choice([-1, 1], 3)#Randomly choose direction of velocity
             sign = np.random.choice([-1, 1]) 
 
-            if time_of_day == 'night' and num_fish != 1: 
-                z = dpref_bottom + (cage_depth - dpref_bottom - dpref_surface)*(fish_id/(num_fish - 1))
-                x = radius * np.cos(angle)
-                y = radius * np.sin(angle)
-                psi = np.arctan2(y, x)
-                theta = np.arctan2(np.sqrt(x**2 + y**2), z)
-                position = np.array([x, y, z, psi, theta])
-            else:
-                x = radius * np.cos(angle)
-                y = radius * np.sin(angle)
-                psi = np.arctan2(y, x)
-                theta = np.arctan2(np.sqrt(x**2 + y**2), depth)
-                position = np.array([x, y, depth, psi, theta]) #Start position
+            x = radius * np.cos(angle)
+            y = radius * np.sin(angle)
+            psi = np.arctan2(y, x)
+            theta = np.arctan2(np.sqrt(x**2 + y**2), depth)
+            position = np.array([x, y, depth, psi, theta]) #Start position
             
             velocity = np.random.normal(ave_velocity_xy * size, 0.03 * size, 3)*signs
             velocity[2] = np.random.normal(ave_velocity_z * size, 0.01 * size)*sign
@@ -396,14 +392,13 @@ class Simulation:
             data_file = None
 
         simulated_time = 0  #Initialize simulated time
+        
         for step in range(num_steps):
             update_progress((step + 1) / num_steps) 
             for fish in self.fish:
                 fish.neighbors = self.find_neighbors(fish)  #Find neighbors using the grid, all fish in nearest 26 cubes
-                #print('fish', fish.id, 'neighbors', [f.id for f in fish.neighbors])
-                fish.social_response(fish.neighbors)  # Update social response based on localized neighbors
                 fish.update_depth_target()
-                #fish.update_neighbors(self.fish, react_dist) #react_dist could be updated to dist_rect_fish 
+                
 
                 if log_data:
                     fish_data = [str(step), str(fish.id), str(fish.size)] + list(map(str, fish.position[:3])) + list(map(str, fish.velocity))
@@ -422,12 +417,12 @@ class Simulation:
 
                 ax.set_xlabel('X-direction')
                 ax.set_ylabel('Y-direction')
-                ax.set_zlabel('Z-direction')
+                ax.set_zlabel('Depth')
 
                 simulated_time = step*dt
                 ax.set_title(f"Simulated Time: {simulated_time:.2f} seconds")
-
-            """# Drawing the grid
+            """"
+            # Drawing the grid
                 for i in range(self.grid_dimensions[0]):
                     for j in range(self.grid_dimensions[1]):
                         for k in range(self.grid_dimensions[2]):
@@ -441,7 +436,7 @@ class Simulation:
                             ax.plot([x[0], x[1]], [y[1], y[1]], [z[0], z[0]], 'gray', linewidth=0.5, linestyle=':')
                             ax.plot([x[0], x[0]], [y[0], y[1]], [z[0], z[0]], 'gray', linewidth=0.5, linestyle=':')
                             ax.plot([x[1], x[1]], [y[0], y[1]], [z[0], z[0]], 'gray', linewidth=0.5, linestyle=':')
-            """
+"""
             for fish in self.fish:
                 fish.euler_step(dt)
                 if visualize:

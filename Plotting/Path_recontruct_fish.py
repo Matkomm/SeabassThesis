@@ -7,8 +7,9 @@ import matplotlib.cm as cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\afternoon_test2.csv')
-#fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\density_testing.csv')
+#fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\afternoon_test2.csv')
+#fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\test_10000.csv')
+fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\morning_final1.csv')
 
 # Parameters for the cylinder
 radius = 6.37
@@ -20,7 +21,7 @@ x_grid = radius * np.cos(theta_grid)
 y_grid = radius * np.sin(theta_grid)
 
 #Filter out the data for Fish x
-fish6_data = fish_data[fish_data['fish_id'] == 6]
+fish6_data = fish_data[fish_data['fish_id'] == 7]
 
 dx = np.diff(fish6_data['pos_x'])
 dy = np.diff(fish6_data['pos_y'])

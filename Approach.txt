@@ -50,3 +50,10 @@ R_dot er ny fart ikke fartendringen.
 Endre på charascteric velocity, det som styrer marsj farten. Endre sånn den passer tiden på dagen. 
 
 5000 fisk, 720 steg. 1time ca 10%
+
+New features that should be implemented
+Temperature
+Feed
+Vertical positioning in general #Make it more genral. Top 20% of the sea cages. Standard deviation of % of the depth. 
+Neighbour algorithm, get it to lower scaling. FIXED? Play with cell_size
+Initialize position in a better way?
