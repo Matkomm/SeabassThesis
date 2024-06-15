@@ -8,10 +8,10 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 #fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\afternoon_test2.csv')
 #fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\test_10000.csv')
-#fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\morning_final1.csv')
+fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\morning_final1.csv')
 #fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\noon_final1.csv')
 #fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\afternoon_final1.csv')
-fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\evening_final1.csv')
+#fish_data = pd.read_csv(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Master\Simulation_data\evening_final1.csv')
 
 # Parameters for the cylinder
 radius = 6.37
@@ -37,10 +37,9 @@ print(f'The total path length of Fish 6 is: {path_length}')
 
 # 3D Plot with subplots for different elevation angles
 fig = plt.figure(figsize=(18, 6))
-fig.suptitle('Reconstructed Path from a Fish in The Evening', fontsize=16)
+
 
 elevations = [0, 30, 90]
-titles = ['0 Degree Elevation', '30 Degree Elevation', '90 Degree Elevation']
 
 for i, elev in enumerate(elevations):
     ax = fig.add_subplot(1, 3, i + 1, projection='3d')
@@ -62,11 +61,10 @@ for i, elev in enumerate(elevations):
     # Plot the fish path
     ax.plot(fish6_data['pos_x'], fish6_data['pos_y'], fish6_data['pos_z']) #label='Fish 6 Path')
 
-    ax.set_xlabel('X Coordinate')
-    ax.set_ylabel('Y Coordinate')
-    ax.set_zlabel('Z Coordinate')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
     #ax.legend()
-    ax.set_title(titles[i])
 
     ax.set_xlim([-radius, radius])
     ax.set_ylim([-radius, radius])
@@ -78,5 +76,5 @@ cbar.set_label('Time Step')
 cbar.set_ticks(np.linspace(fish6_data['time_step'].min(), fish6_data['time_step'].max(), num=10))
 cbar.set_ticklabels([str(int(t)) for t in cbar.get_ticks()])
 
-plt.savefig(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Figures\Autosaved\Path_evening1000.png', bbox_inches='tight')
+plt.savefig(r'C:\Users\Mathiako\OneDrive - NTNU\Documents\Master Mathias\Figures\Autosaved\Path_morning1000.png', bbox_inches='tight')
 plt.show()

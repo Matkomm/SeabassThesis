@@ -6,7 +6,7 @@ import os
 
 
 directory = 'Simulation_data'
-file_path = os.path.join(directory, 'evening_final1.csv') #Change to file name here to store new simulation data
+file_path = os.path.join(directory, 'evening_final10.csv') #Change to file name here to store new simulation data
 
 dpref_bottom = 0.5  #meters
 dpref_surface = 0.5  #meters
@@ -14,26 +14,27 @@ dpref_wall = 0.8  #meters
 max_direction_change = np.radians(60)
 fish_size_upper = 0.26  #meters
 fish_size_lower = 0.24  #meters
-ave_velocity_xy = 0  #BL/s
-ave_velocity_z = 0  #BL/s
+ave_velocity_xy = 0  
+ave_velocity_z = 0  
 Divide_cell_size = 10  #Adjustable, smaller number, less cells
 
 
 # Parameters for the simulation
-num_fish =  1000
+num_fish =  300
 cage_radius = 6.37  
 cage_depth = 8 
-num_steps = 3600 #Number of steps
+num_steps = 300 #Number of steps
 dt = 1.0/1 #Time step
 elev = 0  #Elevation angle for the 3D plot
-time_of_day = 'evening'  #  fish
+time_of_day = 'morning'  
 Temperature = 22.86  #Temperature 12-30°C
 #(morning : 6-10h, noon : 10-13h, afternoon : 13-17h, evening :17-20h and night : 20-6h)
 
-visualize=False #Visualize the simulation
-log_data=True #Log the data to a file
+visualize=True #Visualize the simulation
+log_data=False #Log the data to a file
 
 free_will_percent = {'morning': 0.5, 'noon': 0.8, 'afternoon': 0.6, 'evening': 0.7, 'night': 0.9} #Percentage of fish that swim freely (0-1)
+free_will_percentage = free_will_percent[time_of_day] 
 #Depth preferences for different times of the day (preferred depth, standard deviation)
 depth_preferences = {'morning': (1.2, 1), 'noon': (4.7, 1.2), 'afternoon': (4.5, 1.5), 'evening': (1.5, 2), 'night': (4, 2)
 }
@@ -76,7 +77,7 @@ class Fish:
                 self.characteristic_velocity = 0.46*self.size + 0.1 * self.size * np.random.normal()
             elif time_of_day == 'evening':
                 self.characteristic_velocity = 0.47*self.size + 0.1 * self.size * np.random.normal()
-            else: #Night should not be used? 
+            else: #Night should not be used 
                 self.characteristic_velocity = 0.51*self.size + 0.1 * self.size * np.random.normal()
 
         self.characteristic_velocity *= temperature_coefficient(Temperature)       
@@ -121,7 +122,7 @@ class Fish:
     def initialize_depth_target(self, depth_preferences):
         free_will = np.random.uniform(0, 1)
         target_duration = np.random.randint(20, 60)  #Duration of target depth
-        if free_will <= free_will_percent:  #% chance of free swimming
+        if free_will <= free_will_percentage:  #% chance of free swimming
             target_depth = None
         else:
             preferred_depth, std_dev = depth_preferences
@@ -129,14 +130,12 @@ class Fish:
             if target_depth < dpref_surface:
                 target_depth = dpref_surface
             elif target_depth > cage_depth - dpref_bottom:
-                target_depth = cage_depth - dpref_bottom
-            #print('target_depth', target_depth, 'target_duration', target_duration)   
+                target_depth = cage_depth - dpref_bottom  
         return target_depth, target_duration 
 
     def update_depth_target(self):
         if self.target_duration <= 0:
             self.depth_target, self.target_duration = self.initialize_depth_target(self.depth_preferences)
-            #print('new_target_depth', self.depth_target, 'new_target_duration', self.target_duration)
         else:
             self.target_duration -= 1
 
@@ -166,7 +165,6 @@ class Fish:
 
     def stochastic_component(self, sigma=0.25):
         random_vector = sigma * np.random.randn(3)
-        #random_vector =  np.random.uniform(-sigma, sigma, 3)
         random_vector[0] = 1.0 
         random_vector /= np.linalg.norm(random_vector) 
         rotation_matrix = self.get_rotation_matrix()
@@ -175,19 +173,18 @@ class Fish:
     
     def update_neighbors(self, all_fish, threshold_distance):
         self.neighbors = [f for f in all_fish if 0 < np.linalg.norm(f.position[:3] - self.position[:3]) <= threshold_distance]
-        #print('neighbors', self.id, self.neighbors)
 
 
     def social_response(self, neighbors):
         v_so = np.zeros(3)  
-        num_neighbors = 0  # Keep track of contributing neighbors
+        num_neighbors = 0  
         for neighbor in neighbors:
-            dij = neighbor.position[:3] - self.position[:3]  # Distance vector between fish i and j
+            dij = neighbor.position[:3] - self.position[:3]  #Distance vector between fish i and j
             distance = np.linalg.norm(dij)
             rj_dot = neighbor.velocity  
 
             if distance <= self.dist_pref_fish:
-                v_so_j = dij * (self.dist_pref_fish - distance) #Normalize?
+                v_so_j = dij * (self.dist_pref_fish - distance) 
                 v_so += v_so_j
                 num_neighbors += 1
             elif self.dist_pref_fish < distance <= self.dist_rect_fish:
@@ -218,7 +215,6 @@ class Fish:
         new_psi = self._constrain_angle(psi + psi_dot)
         new_theta = self._constrain_angle(theta + theta_dot)
 
-        # Update the fish's orientation
         self.position[3] = new_psi
         self.position[4] = new_theta
 
@@ -247,7 +243,6 @@ class Fish:
         V_DP = self.v_dp()
         V_SO = self.social_response(self.neighbors) 
         V_ST = self.stochastic_component() 
-        #print('V_ST', V_ST, 'V_SO', V_SO, 'V_c', V_c)
 
         r_dot_change = np.zeros(3)
 
@@ -263,7 +258,6 @@ class Fish:
         r_dot_change[:2] += self.apply_quota(V_DP[:2], quotas, 'horizontal')
         r_dot_change[2] += self.apply_quota(V_DP[2], quotas, 'vertical')
        
-        #Normalize the change in velocity to prevent it from exceeding the characteristic velocity
         if np.linalg.norm(r_dot_change) > self.characteristic_velocity:
            r_dot_change *= self.characteristic_velocity * np.random.uniform(0.8, 1.2)
         #Reference velocity
@@ -330,9 +324,6 @@ class Simulation:
             cell_x = int((position[0] + self.cage_radius) / self.cell_size)
             cell_y = int((position[1] + self.cage_radius) / self.cell_size)
             cell_z = int(position[2] / self.cell_size)
-            # Debugging
-            #print(f"Cell indices for Fish {fish_id}: {cell_x}, {cell_y}, {cell_z}")
-            #print(f"Grid dimensions: {self.grid_dimensions}")
 
             if cell_x < 0 or cell_x >= self.grid_dimensions[0] or cell_y < 0 or cell_y >= self.grid_dimensions[1] or cell_z < 0 or cell_z >= self.grid_dimensions[2]:
                 print(f"Fish {fish_id} is out of grid bounds!")
@@ -341,7 +332,6 @@ class Simulation:
             new_fish = Fish(position, velocity, tau=0.6, size=size, fish_id=fish_id)
             self.grid[cell_x][cell_y][cell_z].append(new_fish)
             self.fish.append(new_fish)
-            #print('fish', fish_id, 'position', position, 'velocity', velocity, 'size', size )
 
         self.cage = SeaCage(cage_radius, cage_depth)
 
